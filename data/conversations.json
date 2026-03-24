@@ -1,0 +1,36 @@
+{
+  "conv-1": {
+    "id": "conv-1",
+    "name": "General",
+    "description": "General discussion channel",
+    "createdAt": "2026-03-14T03:26:03.278Z",
+    "members": [
+      "1",
+      "2",
+      "3"
+    ],
+    "isDirect": false
+  },
+  "conv-2": {
+    "id": "conv-2",
+    "name": "Development",
+    "description": "Development discussions",
+    "createdAt": "2026-03-16T03:26:03.278Z",
+    "members": [
+      "1",
+      "2"
+    ],
+    "isDirect": false
+  },
+  "conv-3": {
+    "id": "conv-3",
+    "name": "Random",
+    "description": "Random discussions",
+    "createdAt": "2026-03-18T03:26:03.278Z",
+    "members": [
+      "1",
+      "3"
+    ],
+    "isDirect": false
+  }
+}

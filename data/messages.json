@@ -1,0 +1,30 @@
+{
+  "msg-1": {
+    "id": "msg-1",
+    "conversationId": "conv-1",
+    "senderId": "1",
+    "senderUsername": "alice",
+    "content": "Welcome to SyncTalk!",
+    "createdAt": "2026-03-15T03:26:03.280Z",
+    "status": "read",
+    "readBy": [
+      "1",
+      "2",
+      "3"
+    ]
+  },
+  "msg-2": {
+    "id": "msg-2",
+    "conversationId": "conv-1",
+    "senderId": "2",
+    "senderUsername": "bob",
+    "content": "Thanks! This looks great.",
+    "createdAt": "2026-03-16T03:26:03.280Z",
+    "status": "read",
+    "readBy": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
