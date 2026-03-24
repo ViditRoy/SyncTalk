@@ -9,6 +9,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
 ## Technology Stack
 
 ### Frontend
+
 - **Framework**: Next.js 16 (App Router)
 - **UI Framework**: React 19.2
 - **Language**: TypeScript
@@ -17,11 +18,13 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
 - **Component Library**: shadcn/ui
 
 ### Backend (In-Memory for Demo)
+
 - **Runtime**: Next.js API Routes
 - **Authentication**: Custom JWT-based sessions with SHA-256 password hashing
 - **Data Storage**: In-memory (localStorage for persistence)
 
 ### Security
+
 - Password hashing using Web Crypto API (SHA-256)
 - Password strength validation (minimum 8 chars, uppercase, lowercase, numbers, special chars)
 - Session token management with 30-minute timeout
@@ -33,6 +36,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
 ## Core Features
 
 ### 1. Authentication & Security
+
 - **Signup Page** (`/app/signup/page.tsx`): User registration with strong password requirements
   - Email validation
   - Password strength indicator with real-time feedback
@@ -58,6 +62,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   - `SessionManager.clearSession()` - Secure logout
 
 ### 2. Real-Time Messaging
+
 - **Chat Interface** (`/app/chat/page.tsx`): Protected chat page with full messaging functionality
 - **Message Components**:
   - `ChatMain` (`/components/chat-main.tsx`) - Main chat area with message display
@@ -72,6 +77,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   - Message content filtering and search
 
 ### 3. Conversation Management
+
 - **Conversations Sidebar** (`/components/conversation-sidebar.tsx`):
   - Organized into "Channels" (group conversations) and "Direct Messages"
   - Create new direct messages with dropdown user selection
@@ -84,6 +90,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   - Cross-user messaging capability
 
 ### 4. Presence & Activity Tracking
+
 - **Presence Panel** (`/components/presence-panel.tsx`):
   - Real-time user status display (online/away/offline)
   - User list with status indicators
@@ -96,6 +103,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   - Auto-clear after 1 second of inactivity
 
 ### 5. User Settings & Preferences
+
 - **Settings Context** (`/lib/settings-context.tsx`):
   - Global state management for user preferences
   - Persistent settings storage to localStorage
@@ -103,7 +111,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
 
 - **User Settings Page** (`/app/settings/page.tsx`):
   - **Notifications**: Enable/disable push notifications and sound
-  - **Privacy & Visibility**: 
+  - **Privacy & Visibility**:
     - Status control (online/away/offline)
     - Direct message filtering (from anyone, known users only, nobody)
     - Last activity visibility toggle
@@ -111,6 +119,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   - **Account**: Reset settings or logout
 
 - **Settings Fields**:
+
   ```typescript
   {
     notifications: boolean;      // Push notifications enabled
@@ -123,6 +132,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   ```
 
 ### 6. User Profiles
+
 - **User Profile Component** (`/components/user-profile.tsx`):
   - View user information (username, email, join date, user ID)
   - User status indicator with color-coded badges
@@ -130,6 +140,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
   - Member avatar with initials
 
 ### 7. Chat Features
+
 - **Message Search** (`/components/message-search.tsx`):
   - Search by message content
   - Filter by sender name
@@ -146,6 +157,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
 ## File Structure
 
 ```
+
 /
 ├── app/
 │   ├── layout.tsx                 # Root layout with dark theme
@@ -186,6 +198,7 @@ SyncTalk is a modern, real-time messaging application built with Next.js 16, Rea
 ## Data Models
 
 ### User Interface
+
 ```typescript
 interface User {
   id: string;
@@ -199,6 +212,7 @@ interface User {
 ```
 
 ### Message Interface
+
 ```typescript
 interface Message {
   id: string;
@@ -214,6 +228,7 @@ interface Message {
 ```
 
 ### Conversation Interface
+
 ```typescript
 interface Conversation {
   id: string;
@@ -228,6 +243,7 @@ interface Conversation {
 ```
 
 ### Presence Interface
+
 ```typescript
 interface Presence {
   userId: string;
@@ -238,6 +254,7 @@ interface Presence {
 ```
 
 ### Session Interface
+
 ```typescript
 interface Session {
   token: string;
@@ -289,6 +306,7 @@ For testing the application, use these pre-configured accounts:
 ## Features Breakdown
 
 ### Messaging Features
+
 - Create direct messages with any user
 - Send messages in group channels
 - Search messages by content or sender
@@ -297,6 +315,7 @@ For testing the application, use these pre-configured accounts:
 - Read receipts
 
 ### User Experience
+
 - Dark theme by default
 - Responsive three-column layout
 - Smooth animations and transitions
@@ -305,6 +324,7 @@ For testing the application, use these pre-configured accounts:
 - Organized conversation list
 
 ### Privacy & Security
+
 - Password strength requirements
 - Secure password hashing
 - Session-based authentication
@@ -314,6 +334,7 @@ For testing the application, use these pre-configured accounts:
 - Direct message filtering
 
 ### Settings Management
+
 - Notification preferences
 - Sound effects control
 - Status management
@@ -326,15 +347,18 @@ For testing the application, use these pre-configured accounts:
 ## How to Test
 
 ### 1. Create a New Account
+
 - Visit `/signup`
 - Enter username, email, and password
 - Password must contain: 8+ chars, uppercase, lowercase, numbers, special char (!@#$%^&*)
 
 ### 2. Login with Demo Account
+
 - Visit `/login`
 - Use credentials: alice/Password1!, bob/Password2!, or charlie/Password3!
 
 ### 3. Test Chat Features
+
 - Select conversations from the sidebar
 - Send messages in channels or direct messages
 - Click "+ New Message" to start a direct chat
@@ -342,12 +366,14 @@ For testing the application, use these pre-configured accounts:
 - Search messages with the search bar
 
 ### 4. Configure Settings
+
 - Click settings icon in chat header
 - Or visit `/settings` directly
 - Adjust notifications, privacy, and message preferences
 - Changes are saved automatically
 
 ### 5. View User Profiles
+
 - Click "View Profile" on any message
 - See user information and status
 - Access message and block options
@@ -357,6 +383,7 @@ For testing the application, use these pre-configured accounts:
 ## Security Considerations
 
 ### Implemented
+
 - Password hashing with SHA-256
 - Password strength validation
 - Session token management
@@ -365,6 +392,7 @@ For testing the application, use these pre-configured accounts:
 - User authentication checks
 
 ### Production Recommendations
+
 - Use bcrypt or Argon2 for password hashing
 - Implement HTTPS/TLS for all communications
 - Use secure HTTP-only cookies for sessions
@@ -420,6 +448,7 @@ For testing the application, use these pre-configured accounts:
 ## Development Notes
 
 ### Adding New Features
+
 1. Update data types in `/lib/store.ts`
 2. Extend context in `/lib/chat-context.tsx` or `/lib/settings-context.tsx`
 3. Create new components in `/components/`
@@ -427,11 +456,13 @@ For testing the application, use these pre-configured accounts:
 5. Ensure settings are persisted to localStorage
 
 ### Modifying Authentication
+
 - Password requirements are in `/lib/auth.ts` (`validatePasswordStrength`)
 - Session timeout is set in `/lib/auth.ts` (30 minutes)
 - Demo credentials are in `/app/login/page.tsx`
 
 ### Styling
+
 - All colors use design tokens defined in `/app/globals.css`
 - Use Tailwind CSS utility classes
 - Dark theme enabled by default in `/app/layout.tsx`
