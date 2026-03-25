@@ -213,7 +213,7 @@ export const mockPresence: Presence[] = [
 ];
 
 // Function to get initial presence including all users
-export function getInitialPresence(): Presence[] {
+export async function getInitialPresence(): Promise<Presence[]> {
   const presenceMap = new Map<string, Presence>();
 
   // First, add demo users' presence
@@ -221,19 +221,36 @@ export function getInitialPresence(): Presence[] {
     presenceMap.set(p.userId, p);
   });
 
-  // Then, add newly created users with online status
+  // Then, add users from database with online status
+  // Only try to fetch from API if we're in a browser environment
   if (typeof window !== 'undefined') {
-    const storedUsers = JSON.parse(localStorage.getItem('users') || '{}');
-    Object.values(storedUsers).forEach((user: any) => {
-      if (!presenceMap.has(user.id)) {
-        presenceMap.set(user.id, {
-          userId: user.id,
-          username: user.username,
-          status: 'online',
-          lastSeen: new Date().toISOString(),
-        });
-      }
-    });
+    try {
+      const dbUsers = await getAllUsers();
+      dbUsers.forEach((user) => {
+        if (!presenceMap.has(user.id)) {
+          presenceMap.set(user.id, {
+            userId: user.id,
+            username: user.username,
+            status: 'online',
+            lastSeen: new Date().toISOString(),
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching users from API:', error);
+      // Fallback to localStorage if API fails
+      const storedUsers = JSON.parse(localStorage.getItem('users') || '{}');
+      Object.values(storedUsers).forEach((user: any) => {
+        if (!presenceMap.has(user.id)) {
+          presenceMap.set(user.id, {
+            userId: user.id,
+            username: user.username,
+            status: 'online',
+            lastSeen: new Date().toISOString(),
+          });
+        }
+      });
+    }
   }
 
   return Array.from(presenceMap.values());

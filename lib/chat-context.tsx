@@ -70,23 +70,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize demo data from storage
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setCurrentUser(user);
-    }
+    const initializeData = async () => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        setCurrentUser(user);
+      }
 
-    // Load messages and conversations from storage (shared across all tabs/windows)
-    const loadedMessages = loadMessagesFromStorage();
-    const loadedConversations = loadConversationsFromStorage();
-    
-    setMessages(loadedMessages);
-    setConversations(loadedConversations);
-    setPresence(getInitialPresence());
+      // Load messages and conversations from storage (shared across all tabs/windows)
+      const loadedMessages = loadMessagesFromStorage();
+      const loadedConversations = loadConversationsFromStorage();
 
-    if (loadedConversations.length > 0) {
-      setActiveConversation(loadedConversations[0]);
-    }
+      setMessages(loadedMessages);
+      setConversations(loadedConversations);
+
+      // Load presence data (now async)
+      const initialPresence = await getInitialPresence();
+      setPresence(initialPresence);
+
+      if (loadedConversations.length > 0) {
+        setActiveConversation(loadedConversations[0]);
+      }
+    };
+
+    initializeData();
   }, []);
 
   const sendMessage = useCallback(
