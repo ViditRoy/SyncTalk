@@ -306,9 +306,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Simulate real-time presence updates
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       // Update existing presence and include any newly created users
-      const currentPresence = getInitialPresence();
+      const currentPresence = await getInitialPresence();
       setPresence(
         currentPresence.map((p) => ({
           ...p,
