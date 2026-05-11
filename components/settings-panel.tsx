@@ -55,8 +55,9 @@ export function SettingsPanel() {
 
           {/* Status */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground block">Status</label>
+            <label htmlFor="status-select" className="text-sm font-medium text-foreground block">Status</label>
             <select
+              id="status-select"
               value={settings.status}
               onChange={(e) => updateSettings({ status: e.target.value as any })}
               className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -69,8 +70,9 @@ export function SettingsPanel() {
 
           {/* Private Messages */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground block">Private Messages</label>
+            <label htmlFor="private-messages-select" className="text-sm font-medium text-foreground block">Private Messages</label>
             <select
+              id="private-messages-select"
               value={settings.privateMessages}
               onChange={(e) => updateSettings({ privateMessages: e.target.value as any })}
               className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -123,6 +125,7 @@ export function SettingsPanel() {
 }
 
 export function SettingsButton() {
+  const { settings, updateSettings } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -166,8 +169,9 @@ export function SettingsButton() {
 
               {/* Status */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground block">Status</label>
+                <label htmlFor="button-status-select" className="text-sm font-medium text-foreground block">Status</label>
                 <select
+                  id="button-status-select"
                   value={settings.status}
                   onChange={(e) => updateSettings({ status: e.target.value as any })}
                   className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"

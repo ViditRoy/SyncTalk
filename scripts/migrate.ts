@@ -1,17 +1,17 @@
-import sqlite3 from 'sqlite3';
-import { promisify } from 'util';
+import { createClient } from '@libsql/client';
 
-// Create database connection
-const db = new sqlite3.Database('synctalk.db');
+const databaseUrl = process.env.DATABASE_URL || 'file:data/syncTalk.db';
 
-// Promisify for async/await
-const dbRun = promisify(db.run.bind(db));
-const dbClose = promisify(db.close.bind(db));
+const client = createClient({
+  url: databaseUrl,
+  authToken: process.env.DATABASE_AUTH_TOKEN,
+});
 
 async function createTables() {
   try {
-    // Users table
-    await dbRun(`
+    console.log(`Creating database tables in ${databaseUrl}...`);
+
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
@@ -21,8 +21,7 @@ async function createTables() {
       )
     `);
 
-    // Sessions table
-    await dbRun(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -33,8 +32,7 @@ async function createTables() {
       )
     `);
 
-    // User settings table
-    await dbRun(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS user_settings (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL UNIQUE,
@@ -48,21 +46,19 @@ async function createTables() {
       )
     `);
 
-    // Conversations table
-    await dbRun(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT,
         created_at TEXT NOT NULL,
-        members TEXT NOT NULL, -- JSON array
+        members TEXT NOT NULL,
         is_direct INTEGER DEFAULT 0,
         recipient_id TEXT
       )
     `);
 
-    // Messages table
-    await dbRun(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         conversation_id TEXT NOT NULL,
@@ -71,17 +67,18 @@ async function createTables() {
         content TEXT NOT NULL,
         created_at TEXT NOT NULL,
         status TEXT DEFAULT 'sent',
-        read_by TEXT DEFAULT '[]', -- JSON array
+        read_by TEXT DEFAULT '[]',
         FOREIGN KEY (conversation_id) REFERENCES conversations (id),
         FOREIGN KEY (sender_id) REFERENCES users (id)
       )
     `);
 
-    console.log('Database tables created successfully!');
+    console.log('Database tables are ready.');
   } catch (error) {
     console.error('Error creating tables:', error);
+    process.exitCode = 1;
   } finally {
-    await dbClose();
+    client.close();
   }
 }
 

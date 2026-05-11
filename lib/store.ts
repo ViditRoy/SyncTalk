@@ -1,4 +1,6 @@
-// In-memory store for demo purposes
+import { SessionManager } from './session';
+
+// In-memory fallback data for demo purposes
 export interface User {
   id: string;
   username: string;
@@ -50,8 +52,23 @@ export interface TypingIndicator {
 // Function to get all users (from database)
 export async function getAllUsers(): Promise<User[]> {
   try {
-    const response = await fetch('/api/users');
-    if (!response.ok) throw new Error('Failed to fetch users');
+    const headers: Record<string, string> = {};
+    const sessionText = typeof window !== 'undefined' ? localStorage.getItem('synctalk_session') : null;
+
+    if (sessionText) {
+      const session = JSON.parse(sessionText);
+      headers.Authorization = `Bearer ${session.token}`;
+    }
+
+    const response = await fetch('/api/users', { headers });
+    if (response.status === 401) {
+      SessionManager.clearSession();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+      return mockUsers;
+    }
+    if (!response.ok) throw new Error(`Failed to fetch users (${response.status})`);
     return await response.json();
   } catch (error) {
     console.error('Error fetching users:', error);

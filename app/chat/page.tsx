@@ -7,6 +7,7 @@ import { SettingsProvider } from '@/lib/settings-context';
 import { ConversationSidebar } from '@/components/conversation-sidebar';
 import { ChatMain } from '@/components/chat-main';
 import { PresencePanel } from '@/components/presence-panel';
+import { SessionManager } from '@/lib/session';
 
 function ChatLayout() {
   return (
@@ -25,7 +26,8 @@ export default function ChatPage() {
 
   react.useEffect(() => {
     const user = localStorage.getItem('user');
-    if (!user) {
+    if (!user || !SessionManager.isAuthenticated()) {
+      SessionManager.clearSession();
       router.push('/login');
     } else {
       setIsAuthed(true);

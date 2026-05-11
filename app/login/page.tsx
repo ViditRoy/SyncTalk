@@ -5,9 +5,7 @@ import React from "react"
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { verifyPassword, validatePasswordStrength } from '@/lib/auth';
 import { SessionManager } from '@/lib/session';
-import { createSession } from '@/lib/auth';
 export default function Login() {
   const router = useRouter();
   const [username, setUsername] = useState('');
@@ -54,11 +52,9 @@ export default function Login() {
         return;
       }
 
-      // Create session
-      const session = createSession(data.user.id, username);
-      SessionManager.saveSession(session);
+      // Save the server-issued session token
+      SessionManager.saveSession(data.session);
 
-      // Keep backward compatibility with user storage
       const userData = {
         id: data.user.id,
         username: data.user.username,

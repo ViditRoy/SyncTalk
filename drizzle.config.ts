@@ -5,6 +5,6 @@ export default defineConfig({
   out: './lib/db/migrations',
   dialect: 'sqlite',
   dbCredentials: {
-    url: 'file:data/syncTalk.db',
+    url: process.env.DATABASE_URL || 'file:data/syncTalk.db',
   },
 });

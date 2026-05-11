@@ -33,7 +33,7 @@ export function MessageInput() {
     }, 1000);
   };
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!message.trim()) {
@@ -54,7 +54,7 @@ export function MessageInput() {
       return;
     }
 
-    const result = sendMessage(message);
+    const result = await sendMessage(message);
 
     if (!result.success) {
       toast({

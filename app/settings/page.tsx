@@ -71,8 +71,9 @@ function SettingsContent() {
             <h2 className="text-xl font-semibold text-foreground mb-4">Privacy & Visibility</h2>
             <div className="space-y-4 bg-card border border-border rounded-lg p-4">
               <div>
-                <label className="text-sm font-medium text-foreground block mb-2">Status</label>
+                <label htmlFor="status-select" className="text-sm font-medium text-foreground block mb-2">Status</label>
                 <select
+                  id="status-select"
                   value={settings.status}
                   onChange={(e) => updateSettings({ status: e.target.value as any })}
                   className="w-full px-4 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -84,8 +85,9 @@ function SettingsContent() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-foreground block mb-2">Direct Messages From</label>
+                <label htmlFor="private-messages-select" className="text-sm font-medium text-foreground block mb-2">Direct Messages From</label>
                 <select
+                  id="private-messages-select"
                   value={settings.privateMessages}
                   onChange={(e) => updateSettings({ privateMessages: e.target.value as any })}
                   className="w-full px-4 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"

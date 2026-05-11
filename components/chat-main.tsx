@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useChat } from '@/lib/chat-context';
 import { useSettings } from '@/lib/settings-context';
 import { SessionManager } from '@/lib/session';
+import { getAllUsers } from '@/lib/store';
 import { MessageItem } from './message-item';
 import { MessageInput } from './message-input';
 import { MessageSearch } from './message-search';
@@ -16,8 +17,22 @@ export function ChatMain() {
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
   const [filteredMessages, setFilteredMessages] = useState<typeof messages>([]);
   const [showDMOptions, setShowDMOptions] = useState(false);
+  const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const getConversationDisplayName = () => {
+    if (!activeConversation || !activeConversation.isDirect || !currentUser) {
+      return activeConversation?.name ?? '';
+    }
+
+    const otherUserId = activeConversation.recipientId === currentUser.id
+      ? activeConversation.members.find((id) => id !== currentUser.id)
+      : activeConversation.recipientId;
+
+    const otherUser = users.find((user) => user.id === otherUserId);
+    return otherUser?.username || activeConversation.name;
+  };
 
   const handleLogout = () => {
     SessionManager.clearSession();
@@ -47,7 +62,13 @@ export function ChatMain() {
     }
   }, []);
 
-  // Close dropdown when clicking outside
+  useEffect(() => {
+    const loadUsers = async () => {
+      setUsers(await getAllUsers());
+    };
+    loadUsers();
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showDMOptions && !(event.target as HTMLElement).closest('[data-dm-menu]')) {
@@ -60,7 +81,23 @@ export function ChatMain() {
   }, [showDMOptions]);
 
   const conversationMessages = activeConversation
-    ? messages.filter((m) => m.conversationId === activeConversation.id)
+    ? (() => {
+        const seenIds = new Set<string>();
+        return messages
+          .filter((m) => m.conversationId === activeConversation.id)
+          .filter((m) => {
+            if (!m.id) {
+              console.warn('Skipping message with missing id for conversation', activeConversation.id, m);
+              return false;
+            }
+            if (seenIds.has(m.id)) {
+              console.warn('Skipping duplicate message id for conversation', activeConversation.id, m.id);
+              return false;
+            }
+            seenIds.add(m.id);
+            return true;
+          });
+      })()
     : [];
 
   const typingUsersList = Array.from(typingUsers.values());
@@ -86,10 +123,9 @@ export function ChatMain() {
 
   return (
     <div ref={containerRef} className="flex-1 flex flex-col">
-      {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">{activeConversation.name}</h1>
+          <h1 className="text-xl font-bold text-foreground">{getConversationDisplayName()}</h1>
           {activeConversation.description && (
             <p className="text-sm text-muted-foreground">{activeConversation.description}</p>
           )}
@@ -99,7 +135,6 @@ export function ChatMain() {
             <p className="text-sm text-muted-foreground">Members: {activeConversation.members.length}</p>
           </div>
           
-          {/* Direct Message Options */}
           {activeConversation.isDirect && (
             <div className="relative" data-dm-menu>
               <button
@@ -150,7 +185,6 @@ export function ChatMain() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {conversationMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">

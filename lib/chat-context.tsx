@@ -1,47 +1,9 @@
 'use client';
 
-import React from "react"
-
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import {
-  Message,
-  Conversation,
-  Presence,
-  mockMessages,
-  mockConversations,
-  mockPresence,
-  mockUsers,
-  getAllUsers,
-  getInitialPresence,
-} from './store';
-
-// Shared message store using localStorage as source of truth
-const MESSAGES_STORAGE_KEY = 'synctalk_messages';
-const CONVERSATIONS_STORAGE_KEY = 'synctalk_conversations';
-
-function loadMessagesFromStorage(): Message[] {
-  if (typeof window === 'undefined') return mockMessages;
-  const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
-  return stored ? JSON.parse(stored) : mockMessages;
-}
-
-function loadConversationsFromStorage(): Conversation[] {
-  if (typeof window === 'undefined') return mockConversations;
-  const stored = localStorage.getItem(CONVERSATIONS_STORAGE_KEY);
-  return stored ? JSON.parse(stored) : mockConversations;
-}
-
-function saveMessagesToStorage(messages: Message[]): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
-  // Database persistence is handled through API routes
-}
-
-function saveConversationsToStorage(conversations: Conversation[]): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations));
-  // Database persistence is handled through API routes
-}
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { Message, Conversation, Presence } from './store';
+import { SessionManager } from './session';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -49,10 +11,11 @@ interface ChatContextType {
   presence: Presence[];
   activeConversation: Conversation | null;
   setActiveConversation: (conv: Conversation) => void;
-  sendMessage: (content: string) => { success: boolean; error?: string };
+  sendMessage: (content: string) => Promise<{ success: boolean; error?: string }>;
   setTyping: (isTyping: boolean) => void;
   typingUsers: Map<string, string>;
-  createDirectMessage: (recipientId: string, recipientUsername?: string) => void;
+  createDirectMessage: (recipientId: string, recipientUsername?: string) => Promise<void>;
+  createGroupConversation: (name: string, memberIds: string[], description?: string) => Promise<{ success: boolean; error?: string }>;
   getUnreadCount: (conversationId: string) => number;
   clearDirectMessageHistory: (conversationId: string) => void;
   deleteDirectMessage: (conversationId: string) => void;
@@ -60,90 +23,174 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const sessionText = localStorage.getItem('synctalk_session');
+  if (!sessionText) return {};
+
+  try {
+    const session = JSON.parse(sessionText);
+    return { Authorization: `Bearer ${session.token}` };
+  } catch {
+    return {};
+  }
+}
+
+export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [presence, setPresence] = useState<Presence[]>([]);
   const [activeConversation, setActiveConversationState] = useState<Conversation | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
+  const { toast } = useToast();
 
-  // Initialize demo data from storage
   useEffect(() => {
+    let eventSource: EventSource | null = null;
+
     const initializeData = async () => {
+      if (typeof window === 'undefined') return;
+
       const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        setCurrentUser(user);
+      const storedSession = localStorage.getItem('synctalk_session');
+      if (!storedUser || !storedSession) return;
+
+      const user = JSON.parse(storedUser);
+      setCurrentUser(user);
+
+      const headers = getAuthHeaders();
+
+      try {
+        const [conversationRes, messageRes, presenceRes] = await Promise.all([
+          fetch('/api/conversations', { headers }),
+          fetch('/api/messages', { headers }),
+          fetch('/api/presence', { headers }),
+        ]);
+
+        if ([conversationRes, messageRes, presenceRes].some((response) => response.status === 401)) {
+          SessionManager.clearSession();
+          window.location.assign('/login');
+          return;
+        }
+
+        if (conversationRes.ok) {
+          const apiConversations = await conversationRes.json();
+          setConversations(apiConversations || []);
+          if (apiConversations.length > 0) {
+            setActiveConversationState(apiConversations[0]);
+          }
+        }
+
+        if (messageRes.ok) {
+          setMessages(await messageRes.json());
+        }
+
+        if (presenceRes.ok) {
+          setPresence(await presenceRes.json());
+        }
+      } catch (error) {
+        console.error('Chat initialization error:', error);
       }
 
-      // Load messages and conversations from storage (shared across all tabs/windows)
-      const loadedMessages = loadMessagesFromStorage();
-      const loadedConversations = loadConversationsFromStorage();
+      try {
+        const token = JSON.parse(storedSession).token;
+        eventSource = new EventSource(`/api/events?token=${token}`);
 
-      setMessages(loadedMessages);
-      setConversations(loadedConversations);
+        eventSource.addEventListener('message', (event) => {
+          try {
+            const incoming: Message = JSON.parse(event.data);
+            if (!incoming?.id) return;
+            setMessages((current) => (current.some((m) => m.id === incoming.id) ? current : [...current, incoming]));
+          } catch (error) {
+            console.error('Realtime message parse error:', error);
+          }
+        });
 
-      // Load presence data (now async)
-      const initialPresence = await getInitialPresence();
-      setPresence(initialPresence);
+        eventSource.addEventListener('conversation', (event) => {
+          try {
+            const conversation: Conversation = JSON.parse(event.data);
+            setConversations((current) => (current.some((c) => c.id === conversation.id) ? current : [...current, conversation]));
+          } catch (error) {
+            console.error('Realtime conversation parse error:', error);
+          }
+        });
 
-      if (loadedConversations.length > 0) {
-        setActiveConversation(loadedConversations[0]);
+        eventSource.addEventListener('presence', (event) => {
+          try {
+            const updatedPresence: Presence = JSON.parse(event.data);
+            setPresence((current) => {
+              const next = current.filter((item) => item.userId !== updatedPresence.userId);
+              return [...next, updatedPresence];
+            });
+          } catch (error) {
+            console.error('Realtime presence parse error:', error);
+          }
+        });
+
+        eventSource.addEventListener('typing', (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            setTypingUsers((current) => {
+              const next = new Map(current);
+              if (payload.isTyping) {
+                next.set(payload.userId, payload.username);
+              } else {
+                next.delete(payload.userId);
+              }
+              return next;
+            });
+          } catch (error) {
+            console.error('Realtime typing parse error:', error);
+          }
+        });
+
+        eventSource.onerror = () => {
+          eventSource?.close();
+        };
+      } catch (error) {
+        console.error('EventSource setup failed:', error);
       }
     };
 
     initializeData();
+
+    return () => {
+      eventSource?.close();
+    };
   }, []);
 
   const sendMessage = useCallback(
-    (content: string): { success: boolean; error?: string } => {
+    async (content: string) => {
       if (!content.trim()) {
         return { success: false, error: 'Cannot send an empty message.' };
       }
-
       if (!currentUser) {
         return { success: false, error: 'No user is signed in.' };
       }
-
       if (!activeConversation) {
         return { success: false, error: 'No active conversation selected.' };
       }
 
       try {
-        const trimmedContent = content.trim();
-
-        const newMessage: Message = {
-          id: `msg-${Date.now()}`,
-          conversationId: activeConversation.id,
-          senderId: currentUser.id,
-          senderUsername: currentUser.username,
-          content: trimmedContent,
-          createdAt: new Date().toISOString(),
-        };
-
-        setMessages((prev) => {
-          const updated = [...prev, newMessage];
-          saveMessagesToStorage(updated);
-          return updated;
+        const response = await fetch('/api/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({
+            conversationId: activeConversation.id,
+            content: content.trim(),
+          }),
         });
 
-        // Update conversation last message
-        setConversations((prev) => {
-          const updated = prev.map((conv) =>
-            conv.id === activeConversation.id ? { ...conv, lastMessage: newMessage } : conv,
-          );
-          saveConversationsToStorage(updated);
-          return updated;
-        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          return { success: false, error: errorData?.error || 'Failed to send message' };
+        }
 
-        // Clear typing indicator
-        setTypingUsers((prev) => {
-          const next = new Map(prev);
-          next.delete(currentUser.id);
-          return next;
-        });
-
+        const newMessage = await response.json();
+        setMessages((prev) => [...prev, newMessage]);
         return { success: true };
       } catch (error) {
         console.error('sendMessage failed:', error);
@@ -154,193 +201,181 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setTyping = useCallback(
-    (isTyping: boolean) => {
-      if (!currentUser) return;
+    async (isTyping: boolean) => {
+      if (!currentUser || !activeConversation) return;
 
-      if (isTyping) {
-        setTypingUsers((prev) => new Map(prev).set(currentUser.id, currentUser.username));
-      } else {
-        setTypingUsers((prev) => {
-          const next = new Map(prev);
+      setTypingUsers((prev) => {
+        const next = new Map(prev);
+        if (isTyping) {
+          next.set(currentUser.id, currentUser.username);
+        } else {
           next.delete(currentUser.id);
-          return next;
+        }
+        return next;
+      });
+
+      try {
+        await fetch('/api/typing', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({
+            conversationId: activeConversation.id,
+            isTyping,
+          }),
         });
+      } catch (error) {
+        console.error('Failed to broadcast typing state:', error);
       }
     },
-    [currentUser],
+    [activeConversation, currentUser],
   );
 
   const createDirectMessage = useCallback(
-    (recipientId: string, recipientUsername?: string) => {
+    async (recipientId: string, recipientUsername?: string) => {
       if (!currentUser || recipientId === currentUser.id) return;
-
-      const conversationId = `dm-${currentUser.id}-${recipientId}`;
-      const existingConv = conversations.find((c) => c.id === conversationId);
-
-      // Use provided username or try to find it
-      let username = recipientUsername;
-      if (!username) {
-        // Fallback: try to get from stored users (this should be avoided in production)
-        try {
-          const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-          const user = storedUsers.find((u: any) => u.id === recipientId);
-          username = user?.username;
-        } catch {
-          username = `User ${recipientId}`;
-        }
+      if (!recipientId) {
+        console.error('createDirectMessage called without a recipientId');
+        return;
       }
 
-      if (existingConv) {
-        // Update existing conversation with current recipient name
-        const updatedConv = { ...existingConv, name: username };
-        setConversations((prev) => {
-          const updated = prev.map((c) => (c.id === conversationId ? updatedConv : c));
-          saveConversationsToStorage(updated);
-          return updated;
+      try {
+        const response = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({
+            name: recipientUsername || `User ${recipientId}`,
+            isDirect: true,
+            recipientId,
+          }),
         });
-        setActiveConversationState(updatedConv);
-      } else {
-        const newConversation: Conversation = {
-          id: conversationId,
-          name: username,
-          createdAt: new Date().toISOString(),
-          members: [currentUser.id, recipientId],
-          isDirect: true,
-          recipientId: recipientId,
-        };
-        setConversations((prev) => {
-          const updated = [...prev, newConversation];
-          saveConversationsToStorage(updated);
-          return updated;
-        });
-        setActiveConversationState(newConversation);
-      }
-    },
-    [currentUser, conversations, setActiveConversationState],
-  );
 
-  // Mark messages as read when conversation is opened
-  const setActiveConversation = useCallback(
-    (conv: Conversation) => {
-      if (!currentUser) return;
+        if (!response.ok) {
+          const rawText = await response.text().catch(() => '');
+          let parsedError: string | Record<string, unknown> | null = null;
 
-      setActiveConversationState(conv);
-
-      // Mark all messages in this conversation as read by current user
-      setMessages((prev) => {
-        const updated = prev.map((msg) => {
-          if (msg.conversationId === conv.id && msg.senderId !== currentUser.id) {
-            const readByUsers = msg.readByUsers || [];
-            if (!readByUsers.includes(currentUser.id)) {
-              return { ...msg, readByUsers: [...readByUsers, currentUser.id] };
+          if (rawText) {
+            try {
+              parsedError = JSON.parse(rawText);
+            } catch {
+              parsedError = rawText;
             }
           }
-          return msg;
+
+          const errorDetail = parsedError ?? (rawText || 'No response body');
+          console.warn('Failed to create direct message conversation', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorDetail,
+            requestBody: {
+              name: recipientUsername || `User ${recipientId}`,
+              isDirect: true,
+              recipientId,
+            },
+          });
+
+          toast?.({
+            title: 'Unable to open direct message',
+            description: typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail),
+            variant: 'destructive',
+          });
+
+          return;
+        }
+
+        const conversation = await response.json();
+        setConversations((prev) => (prev.some((conv) => conv.id === conversation.id) ? prev : [...prev, conversation]));
+        setActiveConversationState(conversation);
+      } catch (error) {
+        console.warn('Error creating direct message:', error);
+        toast?.({
+          title: 'Unable to open direct message',
+          description: 'Network or unexpected error creating the direct message.',
+          variant: 'destructive',
         });
-        saveMessagesToStorage(updated);
-        return updated;
-      });
+      }
     },
     [currentUser],
   );
 
-  // Calculate unread count for a conversation
-  const getUnreadCount = useCallback(
-    (conversationId: string): number => {
-      if (!currentUser) return 0;
+  const createGroupConversation = useCallback(
+    async (name: string, memberIds: string[], description?: string) => {
+      if (!currentUser) {
+        return { success: false, error: 'No user is signed in.' };
+      }
 
-      return messages.filter((msg) => {
-        // Count messages that are:
-        // 1. In this conversation
-        // 2. NOT sent by current user
-        // 3. NOT read by current user (not in readByUsers array)
-        return (
-          msg.conversationId === conversationId &&
-          msg.senderId !== currentUser.id &&
-          !(msg.readByUsers || []).includes(currentUser.id)
-        );
-      }).length;
+      try {
+        const response = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({
+            name,
+            description,
+            members: memberIds,
+            isDirect: false,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          return { success: false, error: errorData?.error || 'Failed to create group' };
+        }
+
+        const conversation = await response.json();
+        setConversations((prev) => (prev.some((conv) => conv.id === conversation.id) ? prev : [...prev, conversation]));
+        setActiveConversationState(conversation);
+        return { success: true };
+      } catch (error) {
+        console.error('createGroupConversation failed:', error);
+        return { success: false, error: 'Failed to create group. Please try again.' };
+      }
+    },
+    [currentUser],
+  );
+
+  const getUnreadCount = useCallback(
+    (conversationId: string) => {
+      if (!currentUser) return 0;
+      return messages.filter((msg) => msg.conversationId === conversationId && msg.senderId !== currentUser.id && !(msg.readBy || []).includes(currentUser.id)).length;
     },
     [messages, currentUser],
   );
 
-  // Clear message history for sender in a direct message conversation
-  const clearDirectMessageHistory = useCallback(
-    (conversationId: string) => {
-      if (!currentUser) return;
+  const clearDirectMessageHistory = useCallback((conversationId: string) => {
+    setMessages((prev) => prev.filter((msg) => msg.conversationId !== conversationId));
+  }, []);
 
-      // Remove all messages in this conversation
-      setMessages((prev) => {
-        const updated = prev.filter((msg) => msg.conversationId !== conversationId);
-        saveMessagesToStorage(updated);
-        return updated;
-      });
-    },
-    [currentUser],
-  );
+  const deleteDirectMessage = useCallback((conversationId: string) => {
+    setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
+    setMessages((prev) => prev.filter((msg) => msg.conversationId !== conversationId));
+    setActiveConversationState((prev) => (prev?.id === conversationId ? null : prev));
+  }, []);
 
-  // Delete entire direct message conversation for sender
-  const deleteDirectMessage = useCallback(
-    (conversationId: string) => {
-      if (!currentUser) return;
-
-      // Remove conversation
-      setConversations((prev) => {
-        const updated = prev.filter((conv) => conv.id !== conversationId);
-        saveConversationsToStorage(updated);
-        return updated;
-      });
-
-      // Remove all messages in this conversation
-      setMessages((prev) => {
-        const updated = prev.filter((msg) => msg.conversationId !== conversationId);
-        saveMessagesToStorage(updated);
-        return updated;
-      });
-
-      // Set active conversation to first available
-      setActiveConversationState(null);
-    },
-    [currentUser],
-  );
-
-  // Simulate real-time presence updates
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      // Update existing presence and include any newly created users
-      const currentPresence = await getInitialPresence();
-      setPresence(
-        currentPresence.map((p) => ({
-          ...p,
-          lastSeen: new Date().toISOString(),
-        })),
+  const setActiveConversation = useCallback(
+    (conv: Conversation) => {
+      setActiveConversationState(conv);
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.conversationId === conv.id && msg.senderId !== currentUser?.id) {
+            const readBy = msg.readBy || [];
+            if (!readBy.includes(currentUser!.id)) {
+              return { ...msg, readBy: [...readBy, currentUser!.id] };
+            }
+          }
+          return msg;
+        }),
       );
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Sync messages and conversations from storage (for cross-browser/tab communication)
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      const storedMessages = loadMessagesFromStorage();
-      const storedConversations = loadConversationsFromStorage();
-      
-      setMessages(storedMessages);
-      setConversations(storedConversations);
-    }, 1000); // Check for updates every second
-
-    return () => clearInterval(syncInterval);
-  }, []);
-
-  // Sync presence to include newly created users
-  useEffect(() => {
-    const presenceSyncInterval = setInterval(() => {
-      setPresence(getInitialPresence());
-    }, 1000); // Check for new users every second
-
-    return () => clearInterval(presenceSyncInterval);
-  }, []);
+    },
+    [currentUser],
+  );
 
   return (
     <ChatContext.Provider
@@ -354,6 +389,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setTyping,
         typingUsers,
         createDirectMessage,
+        createGroupConversation,
         getUnreadCount,
         clearDirectMessageHistory,
         deleteDirectMessage,

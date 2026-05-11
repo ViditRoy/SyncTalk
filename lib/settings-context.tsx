@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
+import { SessionManager } from '@/lib/session';
 
 export interface UserSettings {
   notifications: boolean;
@@ -42,7 +43,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           setCurrentUserId(user.id);
 
           // Load settings from API
-          const response = await fetch(`/api/settings?userId=${user.id}`);
+          const session = SessionManager.getSession();
+          const response = await fetch('/api/settings', {
+            headers: session ? { Authorization: `Bearer ${session.token}` } : undefined,
+          });
+          if (response.status === 401) {
+            SessionManager.clearSession();
+            window.location.assign('/login');
+            return;
+          }
           if (response.ok) {
             const dbSettings = await response.json();
             if (dbSettings.id) {
@@ -73,9 +82,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     // Save to API
     try {
+      const session = SessionManager.getSession();
       await fetch('/api/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+        },
         body: JSON.stringify({ userId: currentUserId, ...updated }),
       });
     } catch (error) {
@@ -90,9 +103,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     // Reset via API
     try {
+      const session = SessionManager.getSession();
       await fetch('/api/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+        },
         body: JSON.stringify({ userId: currentUserId, ...defaultSettings }),
       });
     } catch (error) {

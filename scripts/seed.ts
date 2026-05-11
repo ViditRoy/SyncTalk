@@ -31,6 +31,12 @@ async function seedDatabase() {
     ];
 
     for (const user of demoUsers) {
+      const existingUser = await db.users.findFirst({ where: { username: user.username } });
+      if (existingUser) {
+        console.log(`Skipping existing user: ${user.username}`);
+        continue;
+      }
+
       const passwordHash = await hashPassword(user.password);
       await db.users.create({
         data: {
@@ -72,6 +78,12 @@ async function seedDatabase() {
     ];
 
     for (const conv of conversations) {
+      const existingConversation = await db.conversations.findUnique({ where: { id: conv.id } });
+      if (existingConversation) {
+        console.log(`Skipping existing conversation: ${conv.id}`);
+        continue;
+      }
+
       await db.conversations.create({
         data: {
           id: conv.id,
@@ -109,6 +121,12 @@ async function seedDatabase() {
     ];
 
     for (const msg of messages) {
+      const existingMessages = await db.messages.findMany({ where: { conversationId: msg.conversationId } });
+      if (existingMessages.some((existingMessage) => existingMessage.id === msg.id)) {
+        console.log(`Skipping existing message: ${msg.id}`);
+        continue;
+      }
+
       await db.messages.create({
         data: {
           id: msg.id,

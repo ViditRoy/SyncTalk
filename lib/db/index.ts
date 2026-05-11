@@ -30,6 +30,22 @@ function writeJsonFile(filePath: string, data: any): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
+function normalizeConversation(conversation: any): Conversation {
+  return {
+    ...conversation,
+    description: conversation.description ?? undefined,
+    recipientId: conversation.recipientId ?? undefined,
+  };
+}
+
+function normalizeMessage(message: any): Message {
+  return {
+    ...message,
+    status: message.status ?? 'sent',
+    readBy: message.readBy ?? [],
+  };
+}
+
 // Try to use SQLite, fallback to JSON files
 let useSQLite = true; // libsql should work without native compilation
 
@@ -37,14 +53,14 @@ let useSQLite = true; // libsql should work without native compilation
 export const db = {
   // Users
   users: {
-    async findMany() {
+    async findMany(): Promise<User[]> {
       if (useSQLite) {
         return await drizzleDb.select().from(schema.users);
       }
       const data = readJsonFile(USERS_FILE);
-      return Object.values(data);
+      return Object.values(data) as User[];
     },
-    async findUnique({ where: { id } }: { where: { id: string } }) {
+    async findUnique({ where: { id } }: { where: { id: string } }): Promise<User | null> {
       if (useSQLite) {
         const result = await drizzleDb.select().from(schema.users).where(eq(schema.users.id, id));
         return result[0] || null;
@@ -52,7 +68,7 @@ export const db = {
       const data = readJsonFile(USERS_FILE);
       return data[id] || null;
     },
-    async findFirst({ where }: { where: any }) {
+    async findFirst({ where }: { where: any }): Promise<User | null> {
       if (useSQLite) {
         // Handle OR queries for login (username OR email)
         if (where.OR) {
@@ -116,7 +132,7 @@ export const db = {
 
       return null;
     },
-    async create({ data: userData }: { data: any }) {
+    async create({ data: userData }: { data: User }): Promise<User> {
       if (useSQLite) {
         const result = await drizzleDb.insert(schema.users).values(userData).returning();
         return result[0];
@@ -130,17 +146,24 @@ export const db = {
 
   // Sessions
   sessions: {
-    async findFirst({ where: { id } }: { where: { id: string } }) {
+    async findMany(): Promise<Session[]> {
       if (useSQLite) {
-        const result = await drizzleDb.select().from(sessions).where(eq(sessions.id, id));
+        return await drizzleDb.select().from(schema.sessions);
+      }
+      const data = readJsonFile(SESSIONS_FILE);
+      return Object.values(data) as Session[];
+    },
+    async findFirst({ where: { id } }: { where: { id: string } }): Promise<Session | null> {
+      if (useSQLite) {
+        const result = await drizzleDb.select().from(schema.sessions).where(eq(schema.sessions.id, id));
         return result[0] || null;
       }
       const data = readJsonFile(SESSIONS_FILE);
       return data[id] || null;
     },
-    async create({ data: sessionData }: { data: any }) {
+    async create({ data: sessionData }: { data: Session }): Promise<Session> {
       if (useSQLite) {
-        const result = await drizzleDb.insert(sessions).values(sessionData).returning();
+        const result = await drizzleDb.insert(schema.sessions).values(sessionData).returning();
         return result[0];
       }
       const data = readJsonFile(SESSIONS_FILE);
@@ -161,7 +184,7 @@ export const db = {
 
   // Settings
   userSettings: {
-    async findUnique({ where: { userId } }: { where: { userId: string } }) {
+    async findUnique({ where: { userId } }: { where: { userId: string } }): Promise<UserSettings | null> {
       if (useSQLite) {
         const result = await drizzleDb.select().from(schema.userSettings).where(eq(schema.userSettings.userId, userId));
         return result[0] || null;
@@ -169,10 +192,17 @@ export const db = {
       const data = readJsonFile(SETTINGS_FILE);
       return data[userId] || null;
     },
-    async upsert({ where: { userId }, update, create }: { where: { userId: string }, update: any, create: any }) {
+    async findMany(): Promise<UserSettings[]> {
+      if (useSQLite) {
+        return await drizzleDb.select().from(schema.userSettings);
+      }
+      const data = readJsonFile(SETTINGS_FILE);
+      return Object.values(data) as UserSettings[];
+    },
+    async upsert({ where: { userId }, update, create }: { where: { userId: string }, update: Partial<UserSettings>, create: Partial<Omit<UserSettings, 'id'>> & { userId: string } }): Promise<UserSettings> {
       if (useSQLite) {
         const result = await drizzleDb.insert(schema.userSettings)
-          .values({ ...create, userId })
+          .values({ id: userId, ...create, userId })
           .onConflictDoUpdate({
             target: schema.userSettings.userId,
             set: update
@@ -185,7 +215,7 @@ export const db = {
       if (existing) {
         data[userId] = { ...existing, ...update };
       } else {
-        data[userId] = { id: userId, userId, ...create };
+        data[userId] = { id: userId, ...create, userId };
       }
       writeJsonFile(SETTINGS_FILE, data);
       return data[userId];
@@ -194,38 +224,39 @@ export const db = {
 
   // Conversations
   conversations: {
-    async findMany() {
+    async findMany(): Promise<Conversation[]> {
       if (useSQLite) {
-        return await drizzleDb.select().from(conversations);
+        const result = await drizzleDb.select().from(schema.conversations);
+        return result.map(normalizeConversation);
       }
       const data = readJsonFile(CONVERSATIONS_FILE);
-      return Object.values(data);
+      return Object.values(data) as Conversation[];
     },
-    async findUnique({ where: { id } }: { where: { id: string } }) {
+    async findUnique({ where: { id } }: { where: { id: string } }): Promise<Conversation | null> {
       if (useSQLite) {
-        const result = await drizzleDb.select().from(conversations).where(eq(conversations.id, id));
-        return result[0] || null;
+        const result = await drizzleDb.select().from(schema.conversations).where(eq(schema.conversations.id, id));
+        return result[0] ? normalizeConversation(result[0]) : null;
       }
       const data = readJsonFile(CONVERSATIONS_FILE);
       return data[id] || null;
     },
-    async create({ data: convData }: { data: any }) {
+    async create({ data: convData }: { data: Conversation }): Promise<Conversation> {
       if (useSQLite) {
-        const result = await drizzleDb.insert(conversations).values(convData).returning();
-        return result[0];
+        const result = await drizzleDb.insert(schema.conversations).values(convData).returning();
+        return normalizeConversation(result[0]);
       }
       const data = readJsonFile(CONVERSATIONS_FILE);
       data[convData.id] = convData;
       writeJsonFile(CONVERSATIONS_FILE, data);
       return convData;
     },
-    async update({ where: { id }, data: updateData }: { where: { id: string }, data: any }) {
+    async update({ where: { id }, data: updateData }: { where: { id: string }, data: Partial<Conversation> }): Promise<Conversation | null> {
       if (useSQLite) {
         const result = await drizzleDb.update(schema.conversations)
           .set(updateData)
           .where(eq(schema.conversations.id, id))
           .returning();
-        return result[0] || null;
+        return result[0] ? normalizeConversation(result[0]) : null;
       }
       const data = readJsonFile(CONVERSATIONS_FILE);
       if (data[id]) {
@@ -239,17 +270,27 @@ export const db = {
 
   // Messages
   messages: {
-    async findMany({ where: { conversationId } }: { where: { conversationId: string } }) {
+    async findMany({ where }: { where?: { conversationId?: string } } = {}): Promise<Message[]> {
       if (useSQLite) {
-        return await drizzleDb.select().from(messages).where(eq(messages.conversationId, conversationId));
+        const query = drizzleDb.select().from(schema.messages);
+        if (where?.conversationId) {
+          const result = await query.where(eq(schema.messages.conversationId, where.conversationId));
+          return result.map(normalizeMessage);
+        }
+        const result = await query;
+        return result.map(normalizeMessage);
       }
       const data = readJsonFile(MESSAGES_FILE);
-      return Object.values(data).filter((msg: any) => msg.conversationId === conversationId);
+      const messages = Object.values(data) as any[];
+      if (where?.conversationId) {
+        return messages.filter((msg) => msg.conversationId === where.conversationId);
+      }
+      return messages;
     },
-    async create({ data: msgData }: { data: any }) {
+    async create({ data: msgData }: { data: Message }): Promise<Message> {
       if (useSQLite) {
         const result = await drizzleDb.insert(schema.messages).values(msgData).returning();
-        return result[0];
+        return normalizeMessage(result[0]);
       }
       const data = readJsonFile(MESSAGES_FILE);
       data[msgData.id] = msgData;

@@ -5,9 +5,8 @@ import React from "react"
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { validatePasswordStrength, hashPassword } from '@/lib/auth';
+import { validatePasswordStrength } from '@/lib/auth';
 import { SessionManager } from '@/lib/session';
-import { createSession } from '@/lib/auth';
 
 export default function SignUp() {
   const router = useRouter();
@@ -72,9 +71,8 @@ export default function SignUp() {
         return;
       }
 
-      // Create session
-      const session = createSession(data.user.id, username.trim());
-      SessionManager.saveSession(session);
+      // Save the server-issued session token
+      SessionManager.saveSession(data.session);
 
       localStorage.setItem('user', JSON.stringify({
         id: data.user.id,

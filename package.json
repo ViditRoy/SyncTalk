@@ -1,12 +1,16 @@
 {
-  "name": "my-v0-project",
+  "name": "synctalk",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "next build",
+    "db:migrate": "tsx scripts/run-migrations.ts",
+    "db:setup": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
     "dev": "next dev",
-    "lint": "eslint .",
-    "start": "next start"
+    "lint": "tsc --noEmit",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -69,6 +73,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "baseline-browser-mapping": "^2.10.25",
     "drizzle-kit": "^0.31.10",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
